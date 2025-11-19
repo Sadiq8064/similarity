@@ -21,14 +21,14 @@ app = FastAPI()
 async def get_embedding(text: str):
     try:
         response = openai.embeddings.create(
-            model="text-embedding-3-small",  # or gpt-4o-mini-embedding
+            model="text-embedding-3-small",
             input=text
         )
         return response.data[0].embedding
 
-    except Exception as e:
-        print("Embedding error:", e)
-        raise HTTPException(status_code=500, detail="Failed to generate embeddings")
+    except Exception as err:
+        print("Embedding Error:", err)
+        raise HTTPException(status_code=500, detail=str(err))
 
 
 # -----------------------------------------------------
@@ -42,10 +42,17 @@ def cosine_similarity(v1, v2):
 
 # -----------------------------------------------------
 # GET Endpoint
-# Example:
-# /similarity?text1=hello&text2=hi
 # -----------------------------------------------------
 @app.get("/similarity")
 async def similarity(text1: str, text2: str):
-    emb1 = await get_embedding(text1)
-    e
+    try:
+        emb1 = await get_embedding(text1)
+        emb2 = await get_embedding(text2)
+
+        sim_value = cosine_similarity(emb1, emb2)
+
+        return {"similarity": sim_value}
+
+    except Exception as err:
+        print("Similarity Error:", err)
+        raise HTTPException(status_code=500, detail=str(err))
