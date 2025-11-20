@@ -12,7 +12,6 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 if not openai.api_key:
     raise Exception("OPENAI_API_KEY not found in environment variables")
 
-
 # -----------------------------------------------------
 # FASTAPI APP
 # -----------------------------------------------------
@@ -23,27 +22,30 @@ app = FastAPI(title="Embedding + Similarity API")
 # -----------------------------------------------------
 
 class ChunkItem(BaseModel):
-    chunk_id: str = Field(..., example="doc1_001")
-    text: str     = Field(..., example="This is sample text")
-
+    chunk_id: str
+    text: str
 
 class ChunkEmbedRequest(BaseModel):
-    store_id: str = Field(..., example="user123_store")
-    document_id: str = Field(..., example="doc1")
+    store_id: str
+    document_id: str
     chunks: List[ChunkItem]
-
 
 class ChunkEmbedResponseItem(BaseModel):
     chunk_id: str
     text: str
     embedding: List[float]
 
-
 class ChunkEmbedResponse(BaseModel):
     store_id: str
     document_id: str
     embeddings: List[ChunkEmbedResponseItem]
 
+# New model for /embed-query endpoint
+class QueryEmbedRequest(BaseModel):
+    query: str
+
+class QueryEmbedResponse(BaseModel):
+    embedding: List[float]
 
 # -----------------------------------------------------
 # FUNCTION: Compute Embedding
@@ -79,7 +81,6 @@ async def similarity(text1: str, text2: str):
         emb1 = await get_embedding(text1)
         emb2 = await get_embedding(text2)
         sim_value = cosine_similarity(emb1, emb2)
-
         return {"similarity": sim_value}
 
     except Exception as err:
@@ -92,38 +93,12 @@ async def similarity(text1: str, text2: str):
 # -----------------------------------------------------
 @app.post("/embed-chunks", response_model=ChunkEmbedResponse)
 async def embed_chunks(req: ChunkEmbedRequest):
-    """
-    Accepts:
-    {
-        "store_id": "user123_store",
-        "document_id": "doc1",
-        "chunks": [
-            {
-                "chunk_id": "doc1_001",
-                "text": "some text"
-            }
-        ]
-    }
 
-    Returns:
-    {
-      "store_id": "...",
-      "document_id": "...",
-      "embeddings": [
-        {
-          "chunk_id": "...",
-          "text": "...",
-          "embedding": [...]
-        }
-      ]
-    }
-    """
     try:
         output_items = []
 
         for chunk in req.chunks:
             emb = await get_embedding(chunk.text)
-
             output_items.append(
                 ChunkEmbedResponseItem(
                     chunk_id=chunk.chunk_id,
@@ -140,4 +115,29 @@ async def embed_chunks(req: ChunkEmbedRequest):
 
     except Exception as err:
         print("Chunk Embedding Error:", err)
+        raise HTTPException(status_code=500, detail=str(err))
+
+
+# -----------------------------------------------------
+# 🚀 ROUTE #3 — Query Embedding API (NEW)
+# -----------------------------------------------------
+@app.post("/embed-query", response_model=QueryEmbedResponse)
+async def embed_query(req: QueryEmbedRequest):
+    """
+    Accepts:
+    {
+        "query": "What is diabetes?"
+    }
+
+    Returns:
+    {
+        "embedding": [...]
+    }
+    """
+    try:
+        emb = await get_embedding(req.query)
+        return QueryEmbedResponse(embedding=emb)
+
+    except Exception as err:
+        print("Query Embedding Error:", err)
         raise HTTPException(status_code=500, detail=str(err))
